@@ -1,4 +1,4 @@
-# Week X: Roman Bridge Stability
+# Week 1: Roman Bridge Stability
 
 Welcome to this week's challenge! Get ready to dive into the engineering and history of one of Córdoba's most iconic monuments.
 
