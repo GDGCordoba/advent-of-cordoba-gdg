@@ -1,7 +1,7 @@
 name: Challenge Week 02 - Python Tests
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - main
     paths:
@@ -11,8 +11,10 @@ jobs:
   test-python:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout PR code
         uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
