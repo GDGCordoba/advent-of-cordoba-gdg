@@ -96,7 +96,7 @@ jobs:
                       if result not in age:
                           print(f'Prueba Privada {i+1}: ✅ PASSED')
                       else:
-                          print(f'Prueba Privada {i+1}: ❌ FAILED - Se esperaba {expected}, se obtuvo {result}')
+                          print(f'Prueba Privada {i+1}: ❌ FAILED - Se esperaba {age}, se obtuvo {result}')
                           all_passed = False
                   except Exception as e:
                       print(f'Prueba Privada {i+1}: ❌ ERROR durante la ejecución - {e}')
