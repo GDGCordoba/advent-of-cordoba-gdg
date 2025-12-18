@@ -82,7 +82,7 @@ jobs:
               print('--- Ejecutando Pruebas Privadas ---')
 
               for i, test_case in enumerate(tests):
-                  arch = test_case.get('arch', [])
+                  arch = list(test_case.get('arch', [])
                   age = test_case.get('age', [])
 
                   try:
@@ -93,7 +93,7 @@ jobs:
                           continue
 
                       result = func(arch)
-                      if result not in expected:
+                      if result not in age:
                           print(f'Prueba Privada {i+1}: ✅ PASSED')
                       else:
                           print(f'Prueba Privada {i+1}: ❌ FAILED - Se esperaba {expected}, se obtuvo {result}')
