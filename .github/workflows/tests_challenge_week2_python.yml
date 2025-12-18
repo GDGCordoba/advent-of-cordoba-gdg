@@ -82,7 +82,7 @@ jobs:
               print('--- Ejecutando Pruebas Privadas ---')
 
               for i, test_case in enumerate(tests):
-                  arch = list(test_case.get('arch', [])
+                  arch = test_case.get('arch', [])
                   age = test_case.get('age', [])
 
                   try:
