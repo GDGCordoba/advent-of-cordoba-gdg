@@ -1,0 +1,164 @@
+name: Challenge Week 03 - Java Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'challenges/week3/java/**/solution.*'
+      - 'challenges/week3/java/**/Solution.*'
+
+jobs:
+  test-java:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Find Java solution file
+        id: find-file
+        run: |
+          for file in challenges/week3/*/solution.java challenges/week3/*/Solution.java; do
+            if [[ -f "$file" ]]; then
+              echo "solution-path=$file" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
+
+      - name: Run Java Tests
+        env:
+          PRIVATE_TEST_DATA: ${{ secrets.WEEK_03_PRIVATE_TESTS }}
+          CHALLENGE_FILE_PATH: ${{ steps.find-file.outputs.solution-path }}
+        run: |
+          # Crear dir temporal
+          mkdir -p temp_java
+
+          # Copiar solución quitando package
+          sed '/^package /d' "$CHALLENGE_FILE_PATH" > temp_java/Solution.java
+
+          # Crear TestRunner sin Jackson
+          cat > temp_java/TestRunner.java << 'EOF'
+          import java.io.*;
+          import java.util.*;
+
+          public class TestRunner {
+
+              static class TestCase {
+                  String input;
+                  String expected;
+              }
+
+              static List<TestCase> parse(String json) {
+                  List<TestCase> list = new ArrayList<>();
+                  json = json.trim();
+                  json = json.substring(1, json.length() - 1).trim(); // remove [ ]
+
+                  String[] objs = json.split("\\},\\s*\\{");
+
+                  for (String raw : objs) {
+                      String o = raw.replace("{", "").replace("}", "").trim();
+                      TestCase t = new TestCase();
+
+                      String[] lines = o.split("\",");
+                      for (String line : lines) {
+                          line = line.trim();
+                          if (line.startsWith("\"input\"")) {
+                              t.input = extract(line);
+                          } else if (line.startsWith("\"expected\"")) {
+                              t.expected = extract(line);
+                          }
+                      }
+                      list.add(t);
+                  }
+
+                  return list;
+              }
+
+              private static String extract(String line) {
+                  String val = line.substring(line.indexOf(":") + 1).trim();
+                  if (val.startsWith("\"")) val = val.substring(1);
+                  if (val.endsWith("\"")) val = val.substring(0, val.length() - 1);
+                  return val.replace("\\n", "\n");
+              }
+
+              public static boolean runTest(String i, String input, String expected) throws Exception {
+                  ProcessBuilder pb = new ProcessBuilder("java", "Solution");
+                  pb.redirectErrorStream(true);
+                  Process p = pb.start();
+
+                  BufferedWriter w = new BufferedWriter(new OutputStreamWriter(p.getOutputStream()));
+                  try {
+                      w.write(input);
+                      w.flush();
+                  } catch (Exception ignored) {
+                  } finally {
+                      try { w.close(); } catch (Exception ignored) {}
+                  }
+
+                  BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                  String result = r.readLine();
+
+                  p.waitFor();
+
+                  if (result == null) {
+                      System.out.println("Prueba Privada " + i + ": ❌ FAILED (no hay salida del programa)");
+                      return false;
+                  }
+
+                  result = result.trim();
+
+                  if (result.equals(expected.trim())) {
+                      System.out.println("Prueba Privada " + i + ": ✅ PASSED");
+                      return true;
+                  } else {
+                      System.out.println("Prueba Privada " + i + ": ❌ FAILED - Este no es el resultado esperado");
+                      return false;
+                  }
+              }
+
+              public static void main(String[] args) throws Exception {
+                  String privateData = System.getenv("PRIVATE_TEST_DATA");
+
+                  if (privateData == null) {
+                      System.out.println("Error: PRIVATE_TEST_DATA no encontrado");
+                      System.exit(1);
+                  }
+
+                  List<TestCase> tests = parse(privateData);
+                  int id = 1;
+                  boolean allPassed = true;
+
+                  System.out.println("--- Ejecutando Pruebas Privadas ---");
+
+                  for (TestCase t : tests) {
+                      if (!runTest("Test " + id, t.input, t.expected)) {
+                          allPassed = false;
+                      }
+                      id++;
+                  }
+
+                  System.out.println("--------------------------------------------");
+
+                  if (allPassed) {
+                      System.out.println("¡Todas las pruebas privadas han pasado! 🎉");
+                      System.exit(0);
+                  } else {
+                      System.out.println("Algunas pruebas privadas han fallado.");
+                      System.exit(1);
+                  }
+              }
+          }
+          EOF
+
+          cd temp_java
+          javac *.java
+          java TestRunner
+          cd ..
+          rm -rf temp_java

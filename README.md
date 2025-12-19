@@ -18,7 +18,7 @@ A new challenge will be published **once per week** on the following dates:
 | :------------------: | :-----------: | :----------------------------------------------------- |
 | **Week 1 Challenge** | 5th December  | _Roman Bridge Stability_                               |
 | **Week 2 Challenge** | 12nd December | _Christmas market in the site of the Mosque-Cathedral_ |
-| **Week 3 Challenge** |      ...      | TBA                                                    |
+| **Week 3 Challenge** | 19th December | _Discovering Cordoba_                               |
 | **Week 4 Challenge** |      ...      | TBA                                                    |
 
 ## 💻 Supported Languages
