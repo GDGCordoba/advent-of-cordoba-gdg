@@ -1,0 +1,147 @@
+name: Challenge Week 04 - Java Tests
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'challenges/week4/**/solution.*'
+      - 'challenges/week4/**/Solution.*'
+
+jobs:
+  test-java:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Find Java solution file
+        id: find-file
+        run: |
+          for file in challenges/week4/*/solution.java challenges/week4/*/Solution.java; do
+            if [[ -f "$file" ]]; then
+              echo "solution-path=$file" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
+
+      - name: Run Java Tests
+        env:
+          PRIVATE_TEST_DATA: ${{ secrets.WEEK_04_PRIVATE_TESTS }}
+          CHALLENGE_FILE_PATH: ${{ steps.find-file.outputs.solution-path }}
+        run: |
+          # Crear directorio temporal para compilación
+          mkdir -p temp_java
+          
+          # Leer el archivo de solución y remover la declaración de package
+          sed '/^package /d' "$CHALLENGE_FILE_PATH" > temp_java/Solution.java
+
+          # TestRunner adaptado a transform1→4
+          cat > temp_java/TestRunner.java << 'EOF'
+          import java.util.*;
+          import java.lang.reflect.*;
+          import com.fasterxml.jackson.databind.*;
+
+          public class TestRunner {
+              public static void main(String[] args) {
+                  try {
+                      String privateData = System.getenv("PRIVATE_TEST_DATA");
+                      if (privateData == null) {
+                          System.out.println("Error: PRIVATE_TEST_DATA no encontrado");
+                          System.exit(1);
+                      }
+
+                      ObjectMapper mapper = new ObjectMapper();
+                      JsonNode tests = mapper.readTree(privateData);
+
+                      Class<?> solutionClass = Solution.class;
+                      boolean allPassed = true;
+
+                      Method t1 = Solution.class.getMethod("transform1", String.class);
+                      Method t2 = Solution.class.getMethod("transform2", String.class);
+                      Method t3 = Solution.class.getMethod("transform3", byte[].class);
+                      Method t4 = Solution.class.getMethod("transform4", String.class);
+
+                      System.out.println("--- Ejecutando Pruebas Privadas ---");
+
+                      for (int i = 0; i < tests.size(); i++) {
+                          JsonNode testCase = tests.get(i);
+                          String input = testCase.get("input").asText();
+                          String expected = testCase.get("expected").asText();
+                          String step = testCase.get("step").asText();
+
+                          try {
+                              Object result = null;
+
+                              switch (step) {
+                                  case "transform1":
+                                      result = t1.invoke(null, input);
+                                      break;
+
+                                  case "transform2":
+                                      byte[] bytesResult = (byte[]) t2.invoke(null, input);
+                                      result = new String(bytesResult, java.nio.charset.StandardCharsets.US_ASCII);
+                                      break;
+
+                                  case "transform3":
+                                      byte[] inputBytes = input.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+                                      result = t3.invoke(null, (Object) inputBytes);  
+                                      break;
+
+                                  case "transform4":
+                                      result = t4.invoke(null, input);
+                                      break;
+
+                                  case "final":
+                                      result = t4.invoke(null, input);
+                                      break;
+
+                                  default:
+                                      System.out.println("Prueba Privada " + (i+1) + ": ❌ Step desconocido");
+                                      allPassed = false;
+                                      continue;
+                              }
+
+                              if (result.equals(expected)) {
+                                  System.out.println("Prueba Privada " + (i+1) + ": ✅ PASSED");
+                              } else {
+                                  System.out.println("Prueba Privada " + (i+1) + ": ❌ FAILED - Este no es el resultado esperado");
+                                  allPassed = false;
+                              }
+                          } catch (Exception e) {
+                              System.out.println("Prueba Privada " + (i+1) + ": ❌ ERROR durante la ejecución - " + e.getMessage());
+                              allPassed = false;
+                          }
+                      }
+
+                      System.out.println("----------------------------------");
+                      if (allPassed) {
+                          System.out.println("¡Todas las pruebas privadas han pasado! 🎉");
+                          System.exit(0);
+                      } else {
+                          System.out.println("Algunas pruebas privadas han fallado.");
+                          System.exit(1);
+                      }
+                  } catch (Exception e) {
+                      System.out.println("Error fatal: " + e.getMessage());
+                      e.printStackTrace();
+                      System.exit(1);
+                  }
+              }
+          }
+          EOF
+
+          curl -s -o temp_java/jackson-core.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.15.2/jackson-core-2.15.2.jar
+          curl -s -o temp_java/jackson-databind.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.15.2/jackson-databind-2.15.2.jar
+          curl -s -o temp_java/jackson-annotations.jar https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.15.2/jackson-annotations-2.15.2.jar
+
+          cd temp_java
+          javac -cp ".:jackson-core.jar:jackson-databind.jar:jackson-annotations.jar" *.java
+          java -cp ".:jackson-core.jar:jackson-databind.jar:jackson-annotations.jar" TestRunner
+          cd ..
+          rm -rf temp_java

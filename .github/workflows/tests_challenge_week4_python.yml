@@ -1,0 +1,119 @@
+name: Challenge Week 04 - Python Tests
+on:
+  pull_request_target:
+    branches:
+      - main
+    paths:
+      - 'challenges/week4/**/solution.*'
+
+jobs:
+  test-python:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Find Python solution file
+        id: find-file
+        run: |
+          for file in challenges/week4/*/solution.py; do
+            if [[ -f "$file" ]]; then
+              echo "solution-path=$file" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
+
+      - name: Run Python Tests
+        env:
+          PRIVATE_TEST_DATA: ${{ secrets.WEEK_04_PRIVATE_TESTS }}
+          CHALLENGE_FILE_PATH: ${{ steps.find-file.outputs.solution-path }}
+        run: |
+          python - << 'EOF'
+          import json
+          import os
+          import sys
+          import importlib.util
+
+          def run_transform_tests():
+              path = os.environ.get("CHALLENGE_FILE_PATH")
+              if not path:
+                  print("Error: No se encontró la solución.")
+                  sys.exit(1)
+
+              # Importar el módulo del usuario
+              module_name = "user_solution_module_" + os.path.basename(path).replace(".", "_")
+              spec = importlib.util.spec_from_file_location(module_name, path)
+              user_module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(user_module)
+
+              # Cargar tests privados
+              tests_json = os.environ.get("PRIVATE_TEST_DATA")
+              if not tests_json:
+                  print("Error: No se encontró PRIVATE_TEST_DATA")
+                  sys.exit(1)
+
+              try:
+                  tests = json.loads(tests_json)
+              except Exception as e:
+                  print("Error: JSON inválido en PRIVATE_TEST_DATA:", e)
+                  sys.exit(1)
+
+              all_passed = True
+              print("--- Ejecutando Pruebas Privadas ---")
+
+              for i, test_case in enumerate(tests):
+                  input_data = test_case.get("input")
+                  expected = test_case.get("expected")
+                  step = test_case.get("step")
+
+                  try:
+                      # Ejecutar la transformación correspondiente según el step
+                      if step == "transform1":
+                          result = user_module.transform1(input_data)
+                      elif step == "transform2":
+                          result = user_module.transform2(input_data)
+                          if isinstance(result, bytes):
+                              result = result.decode('ascii')
+                      elif step == "transform3":
+                          if isinstance(input_data, str):
+                              input_data_bytes = input_data.encode('ascii')
+                          else:
+                              input_data_bytes = input_data
+                          result = user_module.transform3(input_data_bytes)
+                      elif step == "transform4":
+                          result = user_module.transform4(input_data)
+                      elif step == "final":
+                          result = user_module.transform4(input_data)
+
+                      else:
+                          print(f"Prueba Privada {i+1}: ❌ Step desconocido: {step}")
+                          all_passed = False
+                          continue
+
+                      if result == expected:
+                          print(f"Prueba Privada {i+1}: ✅ PASSED")
+                      else:
+                          print(f"Prueba Privada {i+1}: ❌ FAILED - Este no es el resultado esperado")
+                          all_passed = False
+                          
+                  except Exception as e:
+                      print(f"Prueba Privada {i+1}: ❌ ERROR durante la ejecución - {e}")
+                      all_passed = False
+
+              print("----------------------------------")
+              if all_passed:
+                  print("¡Todas las pruebas privadas han pasado! 🎉")
+                  sys.exit(0)
+              else:
+                  print("Algunas pruebas privadas han fallado.")
+                  sys.exit(1)
+
+          run_transform_tests()
+          EOF
